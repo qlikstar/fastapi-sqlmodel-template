@@ -8,6 +8,7 @@ import redis.asyncio as redis
 from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import APIRouter, Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 from sqlmodel import SQLModel
@@ -24,6 +25,7 @@ from .config import (
     RedisQueueSettings,
     RedisRateLimiterSettings,
     settings,
+    CORSSettings,
 )
 from .db.database import async_engine as engine
 from .utils import cache, queue, rate_limit
@@ -42,7 +44,8 @@ async def create_redis_cache_pool() -> None:
 
 
 async def close_redis_cache_pool() -> None:
-    await cache.client.aclose()  # type: ignore
+    if cache.client is not None:
+        await cache.client.aclose()  # type: ignore
 
 
 # -------------- queue --------------
@@ -51,7 +54,8 @@ async def create_redis_queue_pool() -> None:
 
 
 async def close_redis_queue_pool() -> None:
-    await queue.pool.aclose()  # type: ignore
+    if queue.pool is not None:
+        await queue.pool.aclose()  # type: ignore
 
 
 # -------------- rate limit --------------
@@ -61,7 +65,8 @@ async def create_redis_rate_limit_pool() -> None:
 
 
 async def close_redis_rate_limit_pool() -> None:
-    await rate_limit.client.aclose()  # type: ignore
+    if rate_limit.client is not None:
+        await rate_limit.client.aclose()  # type: ignore
 
 
 # -------------- application --------------
@@ -126,6 +131,7 @@ def create_application(
         | RedisQueueSettings
         | RedisRateLimiterSettings
         | EnvironmentSettings
+        | CORSSettings
     ),
     create_tables_on_start: bool = True,
     **kwargs: Any,
@@ -187,6 +193,15 @@ def create_application(
 
     application = FastAPI(lifespan=lifespan, **kwargs)
     application.include_router(router)
+
+    # Add CORS middleware with allowed origins from settings
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ALLOWED_ORIGINS_LIST,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     if isinstance(settings, ClientSideCacheSettings):
         application.add_middleware(ClientCacheMiddleware, max_age=settings.CLIENT_CACHE_MAX_AGE)

@@ -1,6 +1,4 @@
 import asyncio
-import os
-import sys
 import urllib.parse
 from logging.config import fileConfig
 
@@ -19,9 +17,21 @@ from app.models.user import User
 # access to the values within the .ini file in use.
 config = context.config
 
-# TEMPORARY: Force SQLite usage for clean migration generation
-db_url = "sqlite+aiosqlite:///./sql_app.db"
-print(f"Using SQLite database URL: {db_url}")
+# Determine the database URL based on the DB_ENGINE setting
+print(f"DB_ENGINE: {settings.DB_ENGINE}")
+
+if settings.DB_ENGINE == DBOption.POSTGRES:
+    # URL encode the password to handle special characters
+    encoded_password = urllib.parse.quote_plus(settings.POSTGRES_PASSWORD)
+    # Use %% to escape % in ConfigParser strings
+    safe_password = encoded_password.replace('%', '%%')
+    db_url = f"postgresql+asyncpg://{settings.POSTGRES_USER}:{safe_password}@{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+    print(f"Using PostgreSQL database URL: postgresql+asyncpg://{settings.POSTGRES_USER}:OBFUSCATED_PASSWORD@{settings.POSTGRES_SERVER}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}")
+else:
+    # Fallback to SQLite
+    db_url = "sqlite+aiosqlite:///./sql_app.db"
+    print(f"Using SQLite database URL: {db_url}")
+
 config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.

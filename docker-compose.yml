@@ -22,31 +22,31 @@ services:
       - ./src/app:/code/app
       - ./src/.env:/code/.env
 
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: arq app.core.worker.settings.WorkerSettings
-    env_file:
-      - ./src/.env
-    depends_on:
-      - db
-      - redis
-    volumes:
-      - ./src/app:/code/app
-      - ./src/.env:/code/.env
+  # worker:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   command: arq app.core.worker.settings.WorkerSettings
+  #   env_file:
+  #     - ./src/.env
+  #   depends_on:
+  #     - db
+  #     - redis
+  #   volumes:
+  #     - ./src/app:/code/app
+  #     - ./src/.env:/code/.env
 
-  db:
-    image: postgres:13
-    env_file:
-      - ./src/.env
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    # -------- replace with comment to run migrations with docker --------
-    expose:
-      - "5432"
-    # ports:
-    #  - 5432:5432
+  # db:
+  #   image: postgres:13
+  #   env_file:
+  #     - ./src/.env
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   # -------- replace with comment to run migrations with docker --------
+  #   expose:
+  #     - "5432"
+  #   # ports:
+  #   #  - 5432:5432
 
   redis:
     image: redis:alpine

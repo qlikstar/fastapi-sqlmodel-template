@@ -489,50 +489,41 @@ To create the first tier it's similar, you just replace `create_superuser` for `
 
 ### 4.4 Database Migrations
 
-> \[!WARNING\]
-> To create the tables if you did not create the endpoints, ensure that you import the models in src/app/models/__init__.py. This step is crucial to create the new tables.
+This project uses Alembic for database migrations. For detailed documentation on working with migrations, please refer to the [migrations README](/src/migrations/README.md).
 
-If you are using the db in docker, you need to change this in `docker-compose.yml` to run migrations:
-
-```sh
-  db:
-    image: postgres:13
-    env_file:
-      - ./src/.env
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    # -------- replace with comment to run migrations with docker --------
-    expose:
-      - "5432"
-    # ports:
-    #  - 5432:5432
-```
-
-Getting:
+Basic migration commands:
 
 ```sh
-  db:
-    ...
-    # expose:
-    #  - "5432"
-    ports:
-      - 5432:5432
-```
+# Create a new migration
+cd src
+poetry run alembic revision --autogenerate -m "your message"
 
-While in the `src` folder, run Alembic migrations:
-
-```sh
-poetry run alembic revision --autogenerate
-```
-
-And to apply the migration
-
-```sh
+# Apply migrations
+cd src
 poetry run alembic upgrade head
 ```
 
-> [!NOTE]
-> If you do not have poetry, you may run it without poetry after running `pip install alembic`
+> [!TIP]
+> If your models aren't being detected by Alembic, make sure to import them in both `src/app/models/__init__.py` and `src/migrations/env.py`.
+
+### 4.5 Switching Between Database Engines
+
+To switch between PostgreSQL and SQLite database connections while working locally, you can modify the DB_ENGINE setting in your .env file. Here's how to do it:
+
+#### Switching Between Database Engines
+Edit your .env file to change the database engine:
+
+For PostgreSQL:
+```
+DB_ENGINE="postgres"
+```
+
+For SQLite:
+```
+DB_ENGINE="sqlite"
+```
+
+Restart your application after changing the setting for it to take effect.
 
 ## 5. Extending
 
@@ -609,14 +600,14 @@ First, you may want to take a look at the project structure and understand what 
     │   │       ├── settings.py       # Worker configuration and settings.
     │   │       └── functions.py      # Async task definitions and management.
     │   │
-    │   ├── crud                      # CRUD operations for the application.
-    │   │   ├── __init__.py
-    │   │   ├── crud_base.py          # Base class for CRUD operations.
-    │   │   ├── crud_posts.py         # CRUD operations for posts.
-    │   │   ├── crud_rate_limit.py    # CRUD operations for rate limiting.
-    │   │   ├── crud_tier.py          # CRUD operations for user tiers.
-    │   │   ├── crud_users.py         # CRUD operations for users.
-    │   │   └── helper.py             # Helper functions for CRUD operations.
+    ├── crud                      # CRUD operations for the application.
+    │   ├── __init__.py
+    │   ├── crud_base.py          # Base class for CRUD operations.
+    │   ├── crud_posts.py         # CRUD operations for posts.
+    │   ├── crud_rate_limit.py    # CRUD operations for rate limiting.
+    │   ├── crud_tier.py          # CRUD operations for user tiers.
+    │   ├── crud_users.py         # CRUD operations for users.
+    │   └── helper.py             # Helper functions for CRUD operations.
     │   │
     │   ├── logs                      # Directory for log files.
     │   │   └── app.log               # Log file for the application.
@@ -1385,6 +1376,7 @@ class Settings(
     RedisRateLimiterSettings,
     DefaultRateLimitSettings,
     EnvironmentSettings,
+    CORSSettings,
 ):
     pass
 
@@ -1404,6 +1396,7 @@ class Settings(
     ClientSideCacheSettings,
     DefaultRateLimitSettings,
     EnvironmentSettings,
+    CORSSettings,
 ):
     pass
 ```

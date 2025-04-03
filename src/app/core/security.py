@@ -100,3 +100,91 @@ async def blacklist_token(token: str, db: AsyncSession) -> None:
     payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     expires_at = datetime.fromtimestamp(payload.get("exp"))
     await crud_token_blacklist.create(db, object=TokenBlacklistCreate(**{"token": token, "expires_at": expires_at}))
+
+# Add Clerk JWT validation
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import Optional, Any
+
+# Clerk configuration
+CLERK_JWT_ISSUER = "https://clerk.your-domain.com"  # Replace with your Clerk domain
+
+# JWT token security scheme
+security = HTTPBearer()
+
+# Local public key for JWT validation
+# Replace this with your actual Clerk public key in PEM format
+CLERK_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1SU1LfVLPHCozMxH2Mo
+4lgOEePzNm0tRgeLezV6ffAt0gunVTLw7onLRnrq0/IzW7yWR7QkrmBL7jTKEn5u
++qKhbwKfBstIs+bMY2Zkp18gnTxKLxoS2tFczGkPLPgizskuemMghRniWaoLcyeh
+kd3qqGElvW/VDL5AaWTg0nLVkjRo9z+40RQzuVaE8AkAFmxZzow3x+VJYKdjykkJ
+0iT9wCS0DRTXu269V264Vf/3jvredZiKRkgwlL9xNAwxXFg0x/XFw005UWVRIkdg
+cKWTjpBP2dPwVZ4WWC+9aGVd+Gyn1o0CLelf4rEjGoXbAAEgAqeGUxrcIlbjXfbc
+mwIDAQAB
+-----END PUBLIC KEY-----"""
+
+class ClerkUser(BaseModel):
+    """Clerk user data model"""
+    id: str
+    email: str
+    username: Optional[str] = None
+    name: Optional[str] = None
+    profile_image_url: Optional[str] = None
+
+async def verify_clerk_jwt(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict[str, Any]:
+    """
+    Verify the Clerk JWT token locally using a public key
+    """
+    token = credentials.credentials
+
+    try:
+        # Verify the token using the local public key
+        payload = jwt.decode(
+            token,
+            CLERK_PUBLIC_KEY,
+            algorithms=["RS256"],
+            audience="your-audience",  # Replace with your audience if needed
+            issuer=CLERK_JWT_ISSUER
+        )
+
+        return payload
+
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Failed to validate token: {str(e)}"
+        )
+
+async def get_current_clerk_user(payload: dict[str, Any] = Depends(verify_clerk_jwt)) -> ClerkUser:
+    """
+    Extract user information from the verified JWT payload
+    """
+    try:
+        # Extract user data from Clerk JWT
+        user_data = {
+            "id": payload.get("sub"),
+            "email": payload.get("email"),
+            "name": payload.get("name"),
+            "username": payload.get("username"),
+            "profile_image_url": payload.get("image_url")
+        }
+        
+        return ClerkUser(**user_data)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not validate user data: {str(e)}"
+        )

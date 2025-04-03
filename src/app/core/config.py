@@ -1,5 +1,7 @@
 import os
+import urllib.parse
 from enum import Enum
+from typing import List
 
 from pydantic_settings import BaseSettings
 from starlette.config import Config
@@ -43,8 +45,13 @@ class PostgresSettings(DatabaseSettings):
     POSTGRES_DB: str = config("POSTGRES_DB", default="postgres")
     POSTGRES_SYNC_PREFIX: str = config("POSTGRES_SYNC_PREFIX", default="postgresql://")
     POSTGRES_ASYNC_PREFIX: str = config("POSTGRES_ASYNC_PREFIX", default="postgresql+asyncpg://")
-    POSTGRES_URI: str = f"{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_SERVER}:{POSTGRES_PORT}/{POSTGRES_DB}"
     POSTGRES_URL: str | None = config("POSTGRES_URL", default=None)
+    
+    @property
+    def POSTGRES_URI(self) -> str:
+        encoded_password = urllib.parse.quote_plus(self.POSTGRES_PASSWORD)
+        # Simple URI without query parameters
+        return f"{self.POSTGRES_USER}:{encoded_password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 
 class FirstUserSettings(BaseSettings):
@@ -103,6 +110,14 @@ class EnvironmentSettings(BaseSettings):
     DB_ENGINE: DBOption = config("DB_ENGINE", default="sqlite")
 
 
+class CORSSettings(BaseSettings):
+    CORS_ALLOWED_ORIGINS: str = config("CORS_ALLOWED_ORIGINS", default="http://localhost:3000")
+
+    @property
+    def CORS_ALLOWED_ORIGINS_LIST(self) -> List[str]:
+        return [origin.strip() for origin in self.CORS_ALLOWED_ORIGINS.split(",")]
+
+
 db_type = PostgresSettings
 if config("DB_ENGINE", default="sqlite") == "sqlite":
     db_type = SQLiteSettings
@@ -112,14 +127,15 @@ class Settings(
     AppSettings,
     db_type,
     CryptSettings,
-    FirstUserSettings,
-    TestSettings,
+    # FirstUserSettings,
+    # TestSettings,
     RedisCacheSettings,
     ClientSideCacheSettings,
-    RedisQueueSettings,
-    RedisRateLimiterSettings,
+    # RedisQueueSettings,
+    # RedisRateLimiterSettings,
     DefaultRateLimitSettings,
     EnvironmentSettings,
+    CORSSettings,
 ):
     pass
 

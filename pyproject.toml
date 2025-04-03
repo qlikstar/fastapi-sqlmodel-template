@@ -2,13 +2,10 @@
 name = "fastapi-boilerplate"
 version = "0.1.0"
 description = "A fully Async FastAPI boilerplate using SQLAlchemy and Pydantic 2"
-authors = ["Igor Magalhaes <igor.magalhaes.r@gmail.com>"]
+authors = ["Igor Magalhaes <igor.magalhaes.r@gmail.com>", "Sanket Mishra <isanketmishra@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "src" }]
-
-[tool.poetry.requires-plugins]
-poetry-plugin-export = ">=1.8"
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -35,6 +32,9 @@ gunicorn = "^22.0.0"
 bcrypt = "^4.1.1"
 fastcrud = "^0.12.0"
 sqlmodel = "^0.0.18"
+aiosqlite = "^0.21.0"
+pyjwt = "^2.10.1"
+psycopg2-binary = "^2.9.10"
 
 
 [build-system]
