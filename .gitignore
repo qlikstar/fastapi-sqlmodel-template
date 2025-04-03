@@ -165,3 +165,15 @@ cython_debug/
 .DS_Store
 
 .ruff_cache
+/.idea/.gitignore
+/.pylintrc
+/.idea/fastapi-sqlmodel-template.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.vscode/settings.json
+/sql_app.db
+/src/app/core/uuid/uuid_types.py
+/.idea/vcs.xml
+/.vscode/

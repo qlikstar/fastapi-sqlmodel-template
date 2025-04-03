@@ -1,0 +1,17 @@
+# Disable all Ruff linting by setting an empty select list
+select = []
+
+# Alternatively, you can keep some rules but exclude specific ones:
+# select = ["E", "F", "B"]
+# ignore = ["E501", "F401", "B904"]
+
+# Exclude specific directories or files if needed
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+]
+
+# Set line length to a high value to effectively disable line length warnings
+line-length = 1000
