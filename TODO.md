@@ -1,0 +1,3 @@
+- Crash Analytics: Use Sentry
+- Logging: Use BetterStack (LogTail)
+- Global object storage: Cloudflare R2

@@ -3,18 +3,17 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...api.dependencies import get_current_user
 from ...core.db.database import async_get_db
-from ...core.exceptions.http_exceptions import DuplicateValueException, ForbiddenException, NotFoundException
-from ...core.security import blacklist_token, get_password_hash, oauth2_scheme, ClerkUser, get_current_clerk_user
+from ...core.exceptions.http_exceptions import DuplicateValueException, NotFoundException
+from ...core.security import ClerkUser, get_current_clerk_user
 from ...crud.crud_users import crud_users
-from ...models.user import UserCreate, UserCreateInternal, UserRead, UserTierUpdate, UserUpdate, UserUpdateInternal
+from ...models.user import UserCreate, UserRead, UserUpdate, UserUpdateInternal
 
 router = APIRouter(tags=["users"])
 
 
 # New endpoint to get user by UUID (unauthenticated)
-@router.get("/user/uuid/{uuid}", response_model=UserRead)
+@router.get("/user/{uuid}", response_model=UserRead)
 async def get_user_by_uuid(
     request: Request,
     uuid: str,
@@ -23,11 +22,88 @@ async def get_user_by_uuid(
     """
     Get user by UUID - unauthenticated endpoint
     """
-    db_user = await crud_users.get(db=db, schema_to_select=UserRead, uuid=uuid)
+    db_user = await crud_users.get(db=db, schema_to_select=UserRead, id=uuid)
     if not db_user:
         raise NotFoundException("User not found")
     
     return db_user
+
+
+# New endpoint to create or update user by clerk_id without authentication
+@router.post("/user/clerk/{clerk_id}", response_model=UserRead)
+async def create_or_update_user_by_clerk_id(
+    request: Request,
+    clerk_id: str,
+    db: Annotated[AsyncSession, Depends(async_get_db)],
+    user_data: UserUpdate = Body(...)
+) -> UserRead:
+    """
+    Create or update a user based on clerk_id without authentication.
+    This endpoint allows for user creation/update without requiring JWT authentication.
+    """
+    # Check if user exists by clerk_id
+    db_user = await crud_users.get(db=db, schema_to_select=UserRead, clerk_id=clerk_id)
+    
+    if db_user:
+        # Update existing user
+        update_data = user_data.model_dump(exclude_unset=True)
+        
+        # Check if email is being changed and verify it's not already taken
+        if "email" in update_data and update_data["email"] and update_data["email"] != db_user["email"]:
+            email_row = await crud_users.exists(db=db, email=update_data["email"])
+            if email_row:
+                raise DuplicateValueException("Email is already registered")
+        
+        # Ensure clerk_id remains the same
+        update_data["clerk_id"] = clerk_id
+        
+        # If there are no fields to update, return the existing user
+        if len(update_data) <= 1:  # Only clerk_id is present
+            return db_user
+            
+        # Create UserUpdateInternal object with updated_at timestamp
+        update_obj = UserUpdateInternal(**update_data)
+        
+        try:
+            updated_user = await crud_users.update(
+                db=db,
+                db_obj=db_user,
+                object=update_obj
+            )
+            return updated_user
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            # If update fails, return the existing user
+            return db_user
+    else:
+        # Create new user
+        create_data = user_data.model_dump(exclude_unset=True)
+        
+        # Ensure required fields are present
+        if "name" not in create_data or not create_data.get("name"):
+            raise DuplicateValueException("Name is required for new users")
+            
+        if "email" not in create_data or not create_data.get("email"):
+            raise DuplicateValueException("Email is required for new users")
+        
+        # Check if email is already registered
+        email_row = await crud_users.exists(db=db, email=create_data["email"])
+        if email_row:
+            raise DuplicateValueException("Email is already registered")
+        
+        # Set clerk_id
+        create_data["clerk_id"] = clerk_id
+        
+        try:
+            # Create user without password (clerk handles authentication)
+            new_user = await crud_users.create(
+                db=db,
+                object=UserCreate(**create_data)
+            )
+            return new_user
+        except Exception as e:
+            print(f"Error creating user: {e}")
+            raise e
 
 
 # New endpoint to update or create user from Clerk JWT
@@ -41,222 +117,55 @@ async def update_user_from_clerk(
     """
     Update or create user from Clerk JWT data
     """
-    # Check if user exists by email
-    db_user = await crud_users.get(db=db, schema_to_select=UserRead, email=clerk_user.email)
+    # First check if user exists by clerk_id
+    db_user = await crud_users.get(db=db, schema_to_select=UserRead, clerk_id=clerk_user.id)
+    
+    # If not found by clerk_id, try by email
+    if not db_user:
+        db_user = await crud_users.get(db=db, schema_to_select=UserRead, email=clerk_user.email)
 
     if db_user:
         # Update existing user
         update_data = {
             "name": user_data.get("name", clerk_user.name),
-            "username": user_data.get("username", clerk_user.username),
             "email": clerk_user.email,  # Always use email from verified JWT
             "profile_image_url": user_data.get("profile_image_url", clerk_user.profile_image_url),
+            "clerk_id": clerk_user.id,  # Set clerk_id from JWT
         }
 
         # Remove None values
         update_data = {k: v for k, v in update_data.items() if v is not None}
 
-        updated_user = await crud_users.update(
-            db=db,
-            db_obj=db_user,
-            obj_in=UserUpdateInternal(**update_data)
-        )
-        return updated_user
+        try:
+            updated_user = await crud_users.update(
+                db=db,
+                db_obj=db_user,
+                object=UserUpdateInternal(**update_data)
+            )
+            return updated_user
+        except Exception as e:
+            print(f"Error updating user: {e}")
+            return db_user
     else:
         # Create new user
         create_data = {
             "name": user_data.get("name", clerk_user.name),
-            "username": user_data.get("username") or clerk_user.id,  # Use Clerk ID as username if not provided
             "email": clerk_user.email,
             "profile_image_url": user_data.get("profile_image_url", clerk_user.profile_image_url),
+            "clerk_id": clerk_user.id,  # Set clerk_id from JWT
         }
 
         # Remove None values
         create_data = {k: v for k, v in create_data.items() if v is not None}
 
-        new_user = await crud_users.create(
-            db=db,
-            obj_in=UserCreateInternal(**create_data)
-        )
-        return new_user
+        try:
+            new_user = await crud_users.create(
+                db=db,
+                object=UserCreate(**create_data)
+            )
+            return new_user
+        except Exception as e:
+            print(f"Error creating user: {e}")
+            raise e
 
 
-@router.post("/user", response_model=UserRead, status_code=201)
-async def write_user(
-    request: Request, user: UserCreate, db: Annotated[AsyncSession, Depends(async_get_db)]
-) -> UserRead:
-    email_row = await crud_users.exists(db=db, email=user.email)
-    if email_row:
-        raise DuplicateValueException("Email is already registered")
-
-    username_row = await crud_users.exists(db=db, username=user.username)
-    if username_row:
-        raise DuplicateValueException("Username not available")
-
-    user_internal_dict = user.model_dump()
-    user_internal_dict["hashed_password"] = get_password_hash(password=user_internal_dict["password"])
-    del user_internal_dict["password"]
-
-    user_internal = UserCreateInternal(**user_internal_dict)
-    created_user: UserRead = await crud_users.create(db=db, object=user_internal)
-    return created_user
-
-
-# @router.get("/users", response_model=PaginatedListResponse[UserRead])
-# async def read_users(
-#     request: Request, db: Annotated[AsyncSession, Depends(async_get_db)], page: int = 1, items_per_page: int = 10
-# ) -> dict:
-#     users_data = await crud_users.get_multi(
-#         db=db,
-#         offset=compute_offset(page, items_per_page),
-#         limit=items_per_page,
-#         schema_to_select=UserRead,
-#         is_deleted=False,
-#     )
-
-#     response: dict[str, Any] = paginated_response(crud_data=users_data, page=page, items_per_page=items_per_page)
-#     return response
-
-
-@router.get("/user/me/", response_model=UserRead)
-async def read_users_me(request: Request, current_user: Annotated[UserRead, Depends(get_current_user)]) -> UserRead:
-    return current_user
-
-
-# @router.get("/user/{username}", response_model=UserRead)
-# async def read_user(request: Request, username: str, db: Annotated[AsyncSession, Depends(async_get_db)]) -> dict:
-#     db_user: UserRead | None = await crud_users.get(
-#         db=db, schema_to_select=UserRead, username=username, is_deleted=False
-#     )
-#     if db_user is None:
-#         raise NotFoundException("User not found")
-
-#     return db_user
-
-
-@router.patch("/user/{username}")
-async def patch_user(
-    request: Request,
-    values: UserUpdate,
-    username: str,
-    current_user: Annotated[UserRead, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(async_get_db)],
-) -> dict[str, str]:
-    db_user = await crud_users.get(db=db, schema_to_select=UserRead, username=username)
-    if db_user is None:
-        raise NotFoundException("User not found")
-
-    if db_user["username"] != current_user["username"]:
-        raise ForbiddenException()
-
-    if values.username != db_user["username"]:
-        existing_username = await crud_users.exists(db=db, username=values.username)
-        if existing_username:
-            raise DuplicateValueException("Username not available")
-
-    if values.email != db_user["email"]:
-        existing_email = await crud_users.exists(db=db, email=values.email)
-        if existing_email:
-            raise DuplicateValueException("Email is already registered")
-
-    await crud_users.update(db=db, object=values, username=username)
-    return {"message": "User updated"}
-
-
-@router.delete("/user/{username}")
-async def erase_user(
-    request: Request,
-    username: str,
-    current_user: Annotated[UserRead, Depends(get_current_user)],
-    db: Annotated[AsyncSession, Depends(async_get_db)],
-    token: str = Depends(oauth2_scheme),
-) -> dict[str, str]:
-    db_user = await crud_users.get(db=db, schema_to_select=UserRead, username=username)
-    if not db_user:
-        raise NotFoundException("User not found")
-
-    if username != current_user["username"]:
-        raise ForbiddenException()
-
-    await crud_users.delete(db=db, username=username)
-    await blacklist_token(token=token, db=db)
-    return {"message": "User deleted"}
-
-
-# @router.delete("/db_user/{username}", dependencies=[Depends(get_current_superuser)])
-# async def erase_db_user(
-#     request: Request,
-#     username: str,
-#     db: Annotated[AsyncSession, Depends(async_get_db)],
-#     token: str = Depends(oauth2_scheme),
-# ) -> dict[str, str]:
-#     db_user = await crud_users.exists(db=db, username=username)
-#     if not db_user:
-#         raise NotFoundException("User not found")
-
-#     await crud_users.db_delete(db=db, username=username)
-#     await blacklist_token(token=token, db=db)
-#     return {"message": "User deleted from the database"}
-
-
-# @router.get("/user/{username}/rate_limits", dependencies=[Depends(get_current_superuser)])
-# async def read_user_rate_limits(
-#     request: Request, username: str, db: Annotated[AsyncSession, Depends(async_get_db)]
-# ) -> dict[str, Any]:
-#     db_user: dict | None = await crud_users.get(db=db, username=username, schema_to_select=UserRead)
-#     if db_user is None:
-#         raise NotFoundException("User not found")
-
-#     if db_user["tier_id"] is None:
-#         db_user["tier_rate_limits"] = []
-#         return db_user
-
-#     db_tier = await crud_tiers.get(db=db, id=db_user["tier_id"])
-#     if db_tier is None:
-#         raise NotFoundException("Tier not found")
-
-#     db_rate_limits = await crud_rate_limits.get_multi(db=db, tier_id=db_tier["id"])
-
-#     db_user["tier_rate_limits"] = db_rate_limits["data"]
-
-#     return db_user
-
-
-# @router.get("/user/{username}/tier")
-# async def read_user_tier(
-#     request: Request, username: str, db: Annotated[AsyncSession, Depends(async_get_db)]
-# ) -> dict | None:
-#     db_user = await crud_users.get(db=db, username=username, schema_to_select=UserRead)
-#     if db_user is None:
-#         raise NotFoundException("User not found")
-
-#     db_tier = await crud_tiers.exists(db=db, id=db_user["tier_id"])
-#     if not db_tier:
-#         raise NotFoundException("Tier not found")
-
-#     joined: dict = await crud_users.get_joined(
-#         db=db,
-#         join_model=Tier,
-#         join_prefix="tier_",
-#         schema_to_select=UserRead,
-#         join_schema_to_select=TierRead,
-#         username=username,
-#     )
-
-#     return joined
-
-
-# @router.patch("/user/{username}/tier", dependencies=[Depends(get_current_superuser)])
-# async def patch_user_tier(
-#     request: Request, username: str, values: UserTierUpdate, db: Annotated[AsyncSession, Depends(async_get_db)]
-# ) -> dict[str, str]:
-#     db_user = await crud_users.get(db=db, username=username, schema_to_select=UserRead)
-#     if db_user is None:
-#         raise NotFoundException("User not found")
-
-#     db_tier = await crud_tiers.get(db=db, id=values.tier_id)
-#     if db_tier is None:
-#         raise NotFoundException("Tier not found")
-
-#     await crud_users.update(db=db, object=values, username=username)
-#     return {"message": f"User {db_user['name']} Tier updated"}

@@ -1,0 +1,3 @@
+"""
+Clerk authentication module initialization
+"""

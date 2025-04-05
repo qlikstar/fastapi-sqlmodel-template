@@ -27,6 +27,10 @@ class CryptSettings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = config("REFRESH_TOKEN_EXPIRE_DAYS", default=7)
 
 
+class ClerkSettings(BaseSettings):
+    CLERK_SECRET_KEY: str = config("CLERK_SECRET_KEY", default="")
+
+
 class DatabaseSettings(BaseSettings):
     pass
 
@@ -50,7 +54,6 @@ class PostgresSettings(DatabaseSettings):
     @property
     def POSTGRES_URI(self) -> str:
         encoded_password = urllib.parse.quote_plus(self.POSTGRES_PASSWORD)
-        # Simple URI without query parameters
         return f"{self.POSTGRES_USER}:{encoded_password}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 
@@ -127,6 +130,7 @@ class Settings(
     AppSettings,
     db_type,
     CryptSettings,
+    ClerkSettings,
     # FirstUserSettings,
     # TestSettings,
     RedisCacheSettings,
