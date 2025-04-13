@@ -14,6 +14,7 @@ from fastapi.openapi.utils import get_openapi
 from sqlmodel import SQLModel
 
 from ..middleware.client_cache_middleware import ClientCacheMiddleware
+from ..middleware.auth_middleware import ClerkAuthMiddleware
 from .config import (
     AppSettings,
     ClientSideCacheSettings,
@@ -204,6 +205,13 @@ def create_application(
 
     if isinstance(settings, ClientSideCacheSettings):
         application.add_middleware(ClientCacheMiddleware, max_age=settings.CLIENT_CACHE_MAX_AGE)
+        
+    # Add Clerk Auth middleware for protected routes
+    application.add_middleware(
+        ClerkAuthMiddleware,
+        protected_paths=[r"/api/v1/user/me"],
+        exclude_paths=[r"/api/v1/user/uuid/.*", r"/api/v1/user/clerk/.*"]
+    )
 
     if isinstance(settings, EnvironmentSettings):
         if settings.ENVIRONMENT != EnvironmentOption.PRODUCTION:

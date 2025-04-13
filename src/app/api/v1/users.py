@@ -110,13 +110,18 @@ async def create_or_update_user_by_clerk_id(
 @router.post("/user/me", response_model=UserRead)
 async def update_user_from_clerk(
     request: Request,
-    clerk_user: Annotated[ClerkUser, Depends(get_current_clerk_user)],
     db: Annotated[AsyncSession, Depends(async_get_db)],
     user_data: dict[str, Any] = Body(default={})
 ) -> UserRead:
     """
     Update or create user from Clerk JWT data
+    
+    This endpoint uses the ClerkAuthMiddleware to validate the JWT token
+    and attach the clerk_user to request.state
     """
+    # Get the clerk_user from request.state (set by middleware)
+    clerk_user = request.state.clerk_user
+    
     # First check if user exists by clerk_id
     db_user = await crud_users.get(db=db, schema_to_select=UserRead, clerk_id=clerk_user.id)
     
