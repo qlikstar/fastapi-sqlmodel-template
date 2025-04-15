@@ -1,7 +1,10 @@
 from datetime import datetime
-from typing import Optional
-from sqlmodel import SQLModel, Field
+from typing import Optional, TYPE_CHECKING
+from sqlmodel import SQLModel, Field, Relationship
 from ..core.uuid.uuid_types import UserUUID
+
+if TYPE_CHECKING:
+    from .organization import Organization
 
 
 class User(SQLModel, table=True):
@@ -20,6 +23,10 @@ class User(SQLModel, table=True):
     # Custom Application Fields
     role: str = Field(default="user")  # 'user', 'admin', etc.
     is_active: bool = Field(default=True)  # User status flag
+    
+    # Organization relationship
+    organization_id: Optional[str] = Field(default=None, foreign_key="organization.id")
+    organization: Optional["Organization"] = Relationship(back_populates="users")
 
     # Metadata Fields
     created_at: datetime = Field(default_factory=lambda: datetime.now().replace(tzinfo=None))
@@ -36,6 +43,7 @@ class UserRead(SQLModel):
     profile_image_url: str
     role: str
     is_active: bool
+    organization_id: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime]
     deleted_at: Optional[datetime]
