@@ -30,6 +30,32 @@ async def get_user_by_uuid(
     return db_user
 
 
+async def get_user_by_clerk_id(
+    db: AsyncSession,
+    clerk_id: str
+) -> UserRead:
+    """
+    Get a user by Clerk ID.
+    
+    Args:
+        db: Database session
+        clerk_id: Clerk ID
+        
+    Returns:
+        The user
+        
+    Raises:
+        NotFoundException: If the user is not found
+    """
+    # Use the get method with clerk_id parameter to find the user
+    db_user = await crud_users.get(db=db, schema_to_select=UserRead, clerk_id=clerk_id)
+    
+    if not db_user:
+        raise NotFoundException("User not found with the provided Clerk ID")
+    
+    return db_user
+
+
 async def create_or_update_user_by_clerk_id(
     db: AsyncSession,
     clerk_id: str,

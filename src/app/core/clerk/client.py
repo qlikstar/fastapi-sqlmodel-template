@@ -26,7 +26,7 @@ class UserEmailAddress(BaseModel):
 
 class UserResponse(BaseModel):
     """Response model for user information"""
-    id: str
+    clerk_id: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[str] = None
@@ -75,7 +75,7 @@ async def get_current_user_info(auth: Dict[str, Any] = Depends(get_current_user)
         email = _extract_primary_email(user)
         
         return UserResponse(
-            id=user.id,
+            clerk_id=user.id,
             first_name=user.first_name,
             last_name=user.last_name,
             email=email,
@@ -197,7 +197,7 @@ async def get_user_by_id(user_id: str) -> UserResponse:
         email = _extract_primary_email(user)
         
         return UserResponse(
-            id=user.id,
+            clerk_id=user.id,
             first_name=user.first_name,
             last_name=user.last_name,
             email=email,
