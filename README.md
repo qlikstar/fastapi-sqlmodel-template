@@ -32,36 +32,28 @@
 
 ## 0. About
 
-**FastAPI boilerplate** creates an extendable async API using FastAPI, SQLModel and PostgreSQL:
+A modern FastAPI application template with Clerk authentication and PostgreSQL integration:
 
-- [`FastAPI`](https://fastapi.tiangolo.com): modern Python web framework for building APIs
-- [`SQLModel`](https://sqlmodel.tiangolo.com): SQL databases in Python, designed for simplicity, compatibility, and robustness.
-- [`PostgreSQL`](https://www.postgresql.org): The World's Most Advanced Open Source Relational Database
-- [`Redis`](https://redis.io): Source Available, in-memory data store used by millions as a cache, message broker and more.
-- [`ARQ`](https://arq-docs.helpmanual.io) Job queues and RPC in python with asyncio and redis.
-- [`Docker Compose`](https://docs.docker.com/compose/) With a single command, create and start all the services from your configuration.
-- [`NGINX`](https://nginx.org/en/) High-performance low resource consumption web server used for Reverse Proxy and Load Balancing.
-
-> \[!TIP\] 
-> If you want the `SQLAlchemy + Pydantic` version instead, head to [Fastapi-boilerplate](https://github.com/igorbenav/FastAPI-boilerplate).
+- [FastAPI](https://fastapi.tiangolo.com): High-performance web framework
+- [SQLModel](https://sqlmodel.tiangolo.com): SQL databases in Python with SQLAlchemy 2.0 support
+- [PostgreSQL](https://www.postgresql.org): Relational database with PgBouncer support
+- [Clerk](https://clerk.com): Modern authentication and authorization
+- [Redis](https://redis.io): In-memory data store for caching and background tasks
+- [ARQ](https://arq-docs.helpmanual.io): Asynchronous job queues with Redis
+- [Docker](https://www.docker.com): Containerization for development and production
 
 ## 1. Features
 
-- ⚡️ Fully async
-- 🚀 SQLModel with Pydantic V2 and SQLAlchemy 2.0 support
-- 🔐 User authentication with JWT
-- 🍪 Cookie based refresh token
-- 🏬 Easy redis caching
-- 👜 Easy client-side caching
-- 🚦 ARQ integration for task queue
-- ⚙️ Efficient and robust queries with <a href="https://github.com/igorbenav/fastcrud">fastcrud</a>
-- ⎘ Out of the box offset and cursor pagination support with <a href="https://github.com/igorbenav/fastcrud">fastcrud</a>
-- 🛑 Rate Limiter dependency
-- 👮 FastAPI docs behind authentication and hidden based on the environment
-- 🦾 Easily extendable
-- 🤸‍♂️ Flexible
-- 🚚 Easy running with docker compose
-- ⚖️ NGINX Reverse Proxy and Load Balancing
+- ⚡️ Fully async architecture
+- 🔐 Secure authentication with Clerk
+- 🏬 Redis caching and background tasks
+- 🚦 ARQ job queues for asynchronous processing
+- 🛑 Rate limiting for API endpoints
+- 🌐 CORS support with configurable origins
+- 🛠️ SQLAlchemy 2.0 with PostgreSQL and PgBouncer compatibility
+- 📊 Alembic migrations for database versioning
+- 📚 Comprehensive error handling and logging
+- 🚚 Docker support for development and production
 
 ## 2. Contents
 
@@ -128,55 +120,49 @@ Then clone your created repository (I'm using the base for the example)
 git clone https://github.com/igormagalhaesr/SQLModel-boilerplate
 ```
 
-> \[!TIP\]
+> [!TIP]
 > If you are in a hurry, you may use one of the following templates (containing a `.env`, `docker-compose.yml` and `Dockerfile`):
 
 - [Running locally with uvicorn](https://gist.github.com/igorbenav/48ad745120c3f77817e094f3a609111a)
 - [Runing in staging with gunicorn managing uvicorn workers](https://gist.github.com/igorbenav/d0518d4f6bdfb426d4036090f74905ee)
 - [Running in production with NGINX](https://gist.github.com/igorbenav/232c3b73339d6ca74e2bf179a5ef48a1)
 
-> \[!WARNING\]
+> [!WARNING]
 > Do not forget to place `docker-compose.yml` and `Dockerfile` in the `root` folder, while `.env` should be in the `src` folder.
 
 ### 3.1 Environment Variables (.env)
 
-Then create a `.env` file inside `src` directory:
-
-```sh
-touch .env
-```
-
-Inside of `.env`, create the following app settings variables:
+Create a `.env` file in your project root with the following variables:
 
 ```
-# ------------- app settings -------------
-APP_NAME="Your app name here"
-APP_DESCRIPTION="Your app description here"
-APP_VERSION="0.1"
-CONTACT_NAME="Your name"
-CONTACT_EMAIL="Your email"
-LICENSE_NAME="The license you picked"
+# ------------- Environment -------------
+ENVIRONMENT="local"  # or "staging", "production"
+DB_ENGINE="postgres"  # or "sqlite" for local development
+
+# ------------- PostgreSQL -------------
+POSTGRES_USER="postgres.arzmvcwxduoaldjdzjux"  # Your PostgreSQL username
+POSTGRES_PASSWORD="An@lyt1csPazzw0rd"  # Your PostgreSQL password
+POSTGRES_SERVER="aws-0-us-west-1.pooler.supabase.com"  # Your PostgreSQL server
+POSTGRES_PORT=6543  # Supabase PgBouncer port
+POSTGRES_DB="postgres"  # Database name
+
+# ------------- Clerk -------------
+CLERK_SECRET_KEY="your_clerk_secret_key"  # Your Clerk secret key
+CLERK_JWT_ISSUER="https://summary-tarpon-14.clerk.accounts.dev"  # Your Clerk issuer URL
+CLERK_AUDIENCE="http://localhost:3000"  # Your frontend URL
+
+# ------------- Redis -------------
+REDIS_QUEUE_HOST="localhost"  # Redis host
+REDIS_QUEUE_PORT=6379  # Redis port
+
+# ------------- CORS -------------
+CORS_ALLOWED_ORIGINS="http://localhost:3000"  # Comma-separated list of allowed origins
 ```
 
-For the database ([`if you don't have a database yet, click here`](#422-running-postgresql-with-docker)), create:
-
-```
-# ------------- database -------------
-POSTGRES_USER="your_postgres_user"
-POSTGRES_PASSWORD="your_password"
-POSTGRES_SERVER="your_server" # default "localhost", if using docker compose you should use "db"
-POSTGRES_PORT=5432 # default "5432", if using docker compose you should use "5432"
-POSTGRES_DB="your_db"
-```
-
-For database administration using PGAdmin create the following variables in the .env file
-
-```
-# ------------- pgadmin -------------
-PGADMIN_DEFAULT_EMAIL="your_email_address"
-PGADMIN_DEFAULT_PASSWORD="your_password"
-PGADMIN_LISTEN_PORT=80
-```
+> [!NOTE]
+> - For local development, set `DB_ENGINE` to "sqlite" to use SQLite instead of PostgreSQL
+> - For production, ensure your PostgreSQL connection details match your Supabase configuration
+> - The `CORS_ALLOWED_ORIGINS` should be updated for your specific frontend domains
 
 To connect to the database, log into the PGAdmin console with the values specified in `PGADMIN_DEFAULT_EMAIL` and `PGADMIN_DEFAULT_PASSWORD`.
 
@@ -240,7 +226,7 @@ REDIS_QUEUE_HOST="your_host" # default "localhost", if using docker compose you 
 REDIS_QUEUE_PORT=6379 # default "6379", if using docker compose you should use "6379"
 ```
 
-> \[!WARNING\]
+> [!WARNING]
 > You may use the same redis for both caching and queue while developing, but the recommendation is using two separate containers for production.
 
 To create the first tier:
@@ -286,27 +272,40 @@ ENVIRONMENT="local"
 - **staging:** `/docs`, `/redoc` and `/openapi.json` available for superusers
 - **production:** `/docs`, `/redoc` and `/openapi.json` not available
 
-### 3.2 Docker Compose (preferred)
+### 3.2 Running the Application
 
-To do it using docker compose, ensure you have docker and docker compose installed, then:
-While in the base project directory (FastAPI-boilerplate here), run:
+#### 3.2.1 Using Docker (Recommended)
 
-```sh
-docker compose up
-```
-
-You should have a `web` container, `postgres` container, a `worker` container and a `redis` container running.
-Then head to `http://127.0.0.1:8000/docs`.
-
-### 3.3 From Scratch
-
-Install poetry:
+1. Ensure Docker is installed
+2. Run the following command:
 
 ```sh
-pip install poetry
+docker compose up -d
 ```
 
-## 4. Usage
+This will start:
+- API service
+- PostgreSQL with PgBouncer
+- Redis
+- Clerk authentication
+
+Access the API at: `http://localhost:8000`
+
+#### 3.2.2 Local Development
+
+1. Install dependencies:
+```sh
+poetry install
+```
+
+2. Set `DB_ENGINE=sqlite` in your .env file for local development
+
+3. Run the application:
+```sh
+poetry run uvicorn src.app.main:app --reload
+```
+
+### 4. Usage
 
 ### 4.1 Docker Compose
 
