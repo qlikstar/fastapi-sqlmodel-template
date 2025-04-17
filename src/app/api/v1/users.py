@@ -1,4 +1,15 @@
 from typing import Annotated, Any
+import logging
+import sys
+import traceback
+
+# Configure root logger to output to stderr
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.INFO)
 
 from fastapi import APIRouter, Depends, Request, Body, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +75,57 @@ async def create_or_update_user_by_clerk_id(
         )
 
 
+# New endpoint to get current user from Clerk JWT
+@router.get("/user/me", response_model=UserRead)
+async def get_current_user(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(async_get_db)]
+) -> UserRead:
+    """
+    Get the current authenticated user
+    
+    This endpoint uses the ClerkAuthMiddleware to validate the JWT token
+    and attach the clerk_user to request.state
+    """
+    # Get the clerk_user from request.state (set by middleware)
+    if not hasattr(request.state, "clerk_user"):
+        logging.error("No clerk_user found in request.state")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+        
+    logging.info("Found clerk_user in request.state, retrieving user data")
+    
+    clerk_user = request.state.clerk_user
+    
+    try:
+        # Convert clerk_user to dict for the service layer
+        clerk_user_data = {
+            "id": clerk_user.id,
+            "email": clerk_user.email,
+            "first_name": clerk_user.first_name,
+            "last_name": clerk_user.last_name,
+            "profile_image_url": clerk_user.profile_image_url
+        }
+        
+        # Call the service to handle business logic
+        result = await user_service.update_user_from_clerk(
+            db=db,
+            clerk_user_data=clerk_user_data,
+            user_data={}
+        )
+        logging.info(f"Successfully retrieved user: {result}")
+        return result
+    except Exception as e:
+        logging.error(f"Unhandled error in get_current_user endpoint: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving user: {str(e)}"
+        )
+
 # New endpoint to update or create user from Clerk JWT
 @router.post("/user/me", response_model=UserRead)
 async def update_user_from_clerk(
@@ -79,10 +141,13 @@ async def update_user_from_clerk(
     """
     # Get the clerk_user from request.state (set by middleware)
     if not hasattr(request.state, "clerk_user"):
+        logging.error("No clerk_user found in request.state")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required"
         )
+        
+    logging.info("Found clerk_user in request.state, proceeding with user creation/update")
         
     clerk_user = request.state.clerk_user
     
@@ -91,17 +156,31 @@ async def update_user_from_clerk(
         clerk_user_data = {
             "id": clerk_user.id,
             "email": clerk_user.email,
-            "name": clerk_user.name,
+            "first_name": clerk_user.first_name,
+            "last_name": clerk_user.last_name,
             "profile_image_url": clerk_user.profile_image_url
         }
         
-        # Call the service to handle business logic
-        return await user_service.update_user_from_clerk(
-            db=db,
-            clerk_user_data=clerk_user_data,
-            user_data=user_data
-        )
+        logging.info(f"Clerk user data: {clerk_user_data}")
+        
+        try:
+            # Call the service to handle business logic
+            result = await user_service.update_user_from_clerk(
+                db=db,
+                clerk_user_data=clerk_user_data,
+                user_data=user_data
+            )
+            logging.info(f"Successfully updated/created user: {result}")
+            return result
+        except Exception as service_error:
+            logging.error(f"Error in user_service.update_user_from_clerk: {str(service_error)}")
+            import traceback
+            logging.error(traceback.format_exc())
+            raise
     except Exception as e:
+        logging.error(f"Unhandled error in update_user_from_clerk endpoint: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating/creating user: {str(e)}"

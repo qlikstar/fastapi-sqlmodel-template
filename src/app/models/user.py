@@ -10,7 +10,13 @@ if TYPE_CHECKING:
 class User(SQLModel, table=True):
     id: str = Field(default_factory=UserUUID.create, primary_key=True)  # Primary Key using TypedUUID
     clerk_id: Optional[str] = Field(default=None, index=True, unique=True)
-    name: str = Field(..., min_length=2, max_length=30, schema_extra={"example": "User Userson"})
+    first_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Mike"})
+    last_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Tyson"})
+    
+    # Property to get full name
+    @property
+    def name(self) -> str:
+        return f"{self.first_name} {self.last_name}".strip()
     email: str = Field(
         ...,
         unique=True,
@@ -38,7 +44,13 @@ class User(SQLModel, table=True):
 class UserRead(SQLModel):
     id: str
     clerk_id: Optional[str]
-    name: str = Field(..., min_length=2, max_length=30, schema_extra={"example": "User Userson"})
+    first_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Mike"})
+    last_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Tyson"})
+    
+    # Property to get full name
+    @property
+    def name(self) -> str:
+        return f"{self.first_name} {self.last_name}".strip()
     email: str = Field(..., schema_extra={"example": "user.userson@example.com"})
     profile_image_url: str
     role: str
@@ -51,20 +63,23 @@ class UserRead(SQLModel):
 
 
 class UserCreate(SQLModel):
-    name: str = Field(..., min_length=2, max_length=30, schema_extra={"example": "User Userson"})
+    first_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "User"})
+    last_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Userson"})
     email: str = Field(..., schema_extra={"example": "user.userson@example.com"})
     clerk_id: Optional[str] = None
     profile_image_url: Optional[str] = None
 
 
 class UserCreateInternal(SQLModel):
-    name: str = Field(..., min_length=2, max_length=30, schema_extra={"example": "User Userson"})
+    first_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "User"})
+    last_name: str = Field(default="", min_length=0, max_length=30, schema_extra={"example": "Userson"})
     email: str = Field(..., schema_extra={"example": "user.userson@example.com"})
     clerk_id: Optional[str] = None
 
 
 class UserUpdate(SQLModel):
-    name: Optional[str] = Field(None, min_length=2, max_length=30)
+    first_name: Optional[str] = Field(None, min_length=0, max_length=30)
+    last_name: Optional[str] = Field(None, min_length=0, max_length=30)
     email: Optional[str] = None
     profile_image_url: Optional[str] = None
 

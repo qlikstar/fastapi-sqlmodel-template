@@ -249,7 +249,7 @@ async def get_user_by_id_async(user_id: str) -> UserResponse:
             email = _extract_primary_email(user)
             
             return UserResponse(
-                id=user.id,
+                clerk_id=user.id,
                 first_name=user.first_name,
                 last_name=user.last_name,
                 email=email,

@@ -209,7 +209,7 @@ def create_application(
     # Add Clerk Auth middleware for protected routes
     application.add_middleware(
         ClerkAuthMiddleware,
-        protected_paths=[r"/api/v1/user/me"],
+        protected_paths=[r"/api/v1/auth/me", r"/api/v1/organization", r"/api/v1/organization/.*"],
         exclude_paths=[r"/api/v1/user/uuid/.*", r"/api/v1/user/clerk/.*"]
     )
 

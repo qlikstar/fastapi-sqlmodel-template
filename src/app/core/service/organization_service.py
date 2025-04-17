@@ -5,13 +5,13 @@ from sqlmodel import select
 from ...crud.crud_organizations import crud_organizations
 from ...crud.crud_users import crud_users
 from ...models.organization import Organization, OrganizationCreate, OrganizationRead, OrganizationUpdate, OrganizationUpdateInternal
-from ...models.user import User, UserRead
+from ...models.user import User, UserRead, UserUpdate
 from ...core.exceptions.http_exceptions import DuplicateValueException, NotFoundException
 
 
 async def create_organization(
     db: AsyncSession,
-    user_id: str,
+    id: str,
     organization_data: OrganizationCreate
 ) -> OrganizationRead:
     """
@@ -29,16 +29,31 @@ async def create_organization(
         DuplicateValueException: If the user already has an organization or the org_url is taken
         NotFoundException: If the user is not found
     """
-    # Get the user from the database
-    db_user = await crud_users.get(db=db, schema_to_select=None, id=user_id)
-    if not db_user:
+    # Get the user from the database by uuid using direct query
+    import logging
+    from sqlmodel import select as sqlmodel_select
+    from ...models.user import User
+    
+    logging.info(f"Looking for user with uuid: {id}")
+    stmt = sqlmodel_select(User).where(User.id == id).limit(1)
+    result = await db.execute(stmt)
+    db_user_tuple = result.first()
+    
+    if not db_user_tuple:
         raise NotFoundException("User not found")
+        
+    # Extract the user from the tuple
+    db_user = db_user_tuple[0]
     
     # Check if the user already has an organization
     if db_user.organization_id:
-        # Get the organization details
-        existing_org = await crud_organizations.get(db=db, schema_to_select=OrganizationRead, id=db_user.organization_id)
-        if existing_org:
+        # Get the organization details using direct query
+        org_stmt = sqlmodel_select(Organization).where(Organization.id == db_user.organization_id).limit(1)
+        org_result = await db.execute(org_stmt)
+        org_tuple = org_result.first()
+        
+        if org_tuple:
+            existing_org = org_tuple[0]
             raise DuplicateValueException(
                 f"User is already associated to an organization: {existing_org.name}"
             )
@@ -49,12 +64,17 @@ async def create_organization(
         object=organization_data
     )
     
-    # Associate the user with the organization
-    await crud_users.update(
-        db=db,
-        db_obj=db_user,
-        object={"organization_id": new_organization.id}
-    )
+    # Associate the user with the organization directly
+    # Update the user's organization_id and set role to admin
+    db_user.organization_id = new_organization.id
+    db_user.role = "admin"  # Make the organization creator an admin
+    
+    # Commit the changes to the database
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    
+    logging.info(f"Updated user {db_user.id} with organization_id {new_organization.id} and role 'admin'")
     
     return new_organization
 
@@ -76,8 +96,11 @@ async def get_organization_by_user_id(
     Raises:
         NotFoundException: If the user doesn't have an organization
     """
-    # Get the user from the database
-    db_user = await crud_users.get(db=db, schema_to_select=None, id=user_id)
+    # Get the user from the database by clerk_id
+    # The user_id from clerk_user.id is actually the clerk_id, not the database id
+    import logging
+    logging.info(f"Looking for user with clerk_id: {user_id}")
+    db_user = await crud_users.get(db=db, schema_to_select=None, clerk_id=user_id)
     if not db_user:
         raise NotFoundException("User not found")
     
@@ -113,8 +136,11 @@ async def update_organization(
         NotFoundException: If the user doesn't have an organization
         DuplicateValueException: If the org_url is already taken
     """
-    # Get the user from the database
-    db_user = await crud_users.get(db=db, schema_to_select=None, id=user_id)
+    # Get the user from the database by clerk_id
+    # The user_id from clerk_user.id is actually the clerk_id, not the database id
+    import logging
+    logging.info(f"Looking for user with clerk_id: {user_id}")
+    db_user = await crud_users.get(db=db, schema_to_select=None, clerk_id=user_id)
     if not db_user:
         raise NotFoundException("User not found")
     
@@ -167,8 +193,11 @@ async def list_organization_users(
     Raises:
         NotFoundException: If the user doesn't have an organization
     """
-    # Get the user from the database
-    db_user = await crud_users.get(db=db, schema_to_select=None, id=user_id)
+    # Get the user from the database by clerk_id
+    # The user_id from clerk_user.id is actually the clerk_id, not the database id
+    import logging
+    logging.info(f"Looking for user with clerk_id: {user_id}")
+    db_user = await crud_users.get(db=db, schema_to_select=None, clerk_id=user_id)
     if not db_user:
         raise NotFoundException("User not found")
     

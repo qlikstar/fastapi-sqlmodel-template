@@ -1,4 +1,15 @@
 from typing import Annotated, List
+import logging
+import traceback
+import sys
+
+# Configure root logger to output to stderr
+root_logger = logging.getLogger()
+if not root_logger.handlers:
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.INFO)
 
 from fastapi import APIRouter, Depends, Request, Body, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,27 +38,35 @@ async def create_organization(
     - Optional org_url can be provided for a custom URL slug
     """
     # Get the authenticated user from request state (set by middleware)
-    if not hasattr(request.state, "clerk_user"):
+    if not hasattr(request.state, "db_user"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required to create an organization"
         )
     
     # Validate and extract user ID
-    clerk_user = request.state.clerk_user
+    db_user = request.state.db_user
+    logging.info(f"Creating organization for user: {db_user}")
     
     try:
+        # Log the user ID and organization data
+        logging.info(f"User ID: {db_user.id}, Organization data: {organization_data}")
+        
         # Call the service to handle business logic
-        return await organization_service.create_organization(
+        result = await organization_service.create_organization(
             db=db,
-            user_id=clerk_user.id,
+            id=db_user.id,
             organization_data=organization_data
         )
+        logging.info(f"Organization created successfully: {result}")
+        return result
     except DuplicateValueException as e:
         raise DuplicateValueException(str(e))
     except NotFoundException as e:
         raise NotFoundException(str(e))
     except Exception as e:
+        logging.error(f"Error creating organization: {str(e)}")
+        logging.error(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating organization: {str(e)}"
